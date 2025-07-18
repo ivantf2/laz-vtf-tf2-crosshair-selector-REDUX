@@ -114,30 +114,47 @@ def build_entries():
         return None
 
     global debug_lastfile
-    files = [f for f in os.listdir(get_scripts_path()) if os.path.isfile(os.path.join(get_scripts_path(), f))]
-    re_weapon = "^(tf_weapon_[a-zA-Z_]+)\.txt$"
+    files = [
+        f for f in os.listdir(get_scripts_path())
+        if os.path.isfile(os.path.join(get_scripts_path(), f))
+    ]
+    re_weapon = r"^(tf_weapon_[a-zA-Z_]+)\.txt$"
 
     data = []
-
     for fn in files:
         wep = re.search(re_weapon, fn)
         if not wep:
             continue
 
-        fpath = "{}/{}".format(get_scripts_path(), fn)
-        debug_lastfile = "/".join(fpath.replace("\\", "/").split("/")[-2:])
+        fpath = os.path.join(get_scripts_path(), fn).replace("\\", "/")
+        debug_lastfile = "/".join(fpath.split("/")[-2:])
 
         with open(fpath, "r") as f:
+            cfg = parse_cfg(f.readlines())
+            # try fetching WeaponData > TextureData > "crosshair"
+            wd = cfg.get("WeaponData", {})
+            tex = wd.get("TextureData", {})
+            cross_key = "\"crosshair\""
+            xhair_entry = tex.get(cross_key, {})
+
+            if isinstance(xhair_entry, dict) and "file" in xhair_entry:
+                xhair_file = xhair_entry["file"]
+                # get only the name of the file
+                xhair_name = xhair_file.split("/")[-1]
+            else:
+                # fallback if there is no 'file'
+                xhair_name = None  # maybe "default.vtf", test
+
             datum = {
                 "path": fpath,
                 "name": wep.group(1),
-                "cfg": parse_cfg(f.readlines())
+                "cfg": cfg,
+                "xhair": xhair_name,
             }
-            datum["xhair"] = datum["cfg"]["WeaponData"]["TextureData"]["\"crosshair\""]["file"].split("/")[-1] # spaces seem to cause issues
             data.append(datum)
-            
 
     return data
+
 
 # Sort entries, sort_arr is a list with two values, either -1, 0, 1,
 # indicating which column to sort by and whether to sort ascending
